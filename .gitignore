@@ -1,0 +1,5 @@
+node_modules/
+example/docs/generated/
+*.tgz
+.DS_Store
+.local/

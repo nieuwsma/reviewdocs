@@ -1,0 +1,46 @@
+{
+  "name": "reviewdocs",
+  "version": "0.1.0",
+  "description": "Configuration-driven documentation, architecture reference, and engineering review evidence generator",
+  "type": "module",
+  "bin": {
+    "reviewdocs": "./bin/reviewdocs.mjs"
+  },
+  "exports": {
+    ".": "./src/index.mjs"
+  },
+  "files": [
+    "bin",
+    "src",
+    "templates",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build:example": "node ./bin/reviewdocs.mjs build --config example/reviewdocs.config.mjs",
+    "check:example": "node ./bin/reviewdocs.mjs check --config example/reviewdocs.config.mjs",
+    "test": "node --test",
+    "check": "npm test && npm run build:example && npm run check:example",
+    "prepack": "npm run check"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "documentation",
+    "engineering-review",
+    "evidence",
+    "openapi",
+    "mermaid",
+    "schemaspy"
+  ],
+  "license": "Apache-2.0",
+  "dependencies": {
+    "marked": "17.0.5",
+    "marked-gfm-heading-id": "4.1.3",
+    "swagger-ui-dist": "5.32.15"
+  },
+  "optionalDependencies": {
+    "@mermaid-js/mermaid-cli": "11.17.0"
+  }
+}
