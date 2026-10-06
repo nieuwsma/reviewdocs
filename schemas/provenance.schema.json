@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "formatVersion",
+    "artifact",
+    "toolkitVersion",
+    "inputs",
+    "inputHash",
+    "outputHash",
+    "status"
+  ],
+  "properties": {
+    "formatVersion": {
+      "const": 1
+    },
+    "artifact": {
+      "type": "string",
+      "minLength": 1
+    },
+    "toolkitVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "inputs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "inputHash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "outputHash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "status": {
+      "const": "built"
+    },
+    "source": {
+      "type": "object"
+    }
+  },
+  "title": "provenance"
+}

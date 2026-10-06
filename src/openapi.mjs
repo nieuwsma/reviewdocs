@@ -1,6 +1,7 @@
 import { copyFile, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { createRequire } from "node:module";
+import { parse as parseYaml } from "yaml";
 import { replaceDirectory } from "./files.mjs";
 
 const require = createRequire(import.meta.url);
@@ -26,11 +27,18 @@ function dereference(root, value, ancestry = new Set()) {
   return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, dereference(root, item, ancestry)]));
 }
 
+export async function loadContract(source) {
+  const text = await readFile(source, "utf8");
+  if (/\.ya?ml$/i.test(source)) return parseYaml(text);
+  return JSON.parse(text);
+}
+
 export async function buildOpenApi(document) {
-  const contract = JSON.parse(await readFile(document.source, "utf8"));
+  const contract = await loadContract(document.source);
   const embedded = JSON.stringify(dereference(contract, contract)).replaceAll("<", "\\u003c").replaceAll("\u2028", "\\u2028").replaceAll("\u2029", "\\u2029");
   const title = document.title ?? contract.info?.title ?? "API reference";
-  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escape(title)}</title><link rel="stylesheet" href="swagger-ui.css"><style>body{margin:0;background:#fafafa}.intro{padding:1rem 4%;border-bottom:1px solid #d8dee5;background:white;font:15px/1.5 system-ui}.intro h1{margin:0}.intro p{max-width:90ch}</style></head><body><header class="intro"><h1>${escape(title)}</h1><p>Offline API documentation. Interactive requests are disabled. <a href="openapi.json" download>Download the OpenAPI document</a>.</p></header><main id="swagger-ui"></main><script id="openapi" type="application/json">${embedded}</script><script src="swagger-ui-bundle.js"></script><script>SwaggerUIBundle({spec:JSON.parse(document.querySelector('#openapi').textContent),dom_id:'#swagger-ui',deepLinking:true,displayOperationId:true,filter:true,supportedSubmitMethods:[],tryItOutEnabled:false,validatorUrl:null});</script></body></html>\n`;
+  const sourceLabel = escape(path.relative(document.outputDir, document.source));
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escape(title)}</title><link rel="stylesheet" href="swagger-ui.css"><style>body{margin:0;background:#fafafa}.intro{padding:1rem 4%;border-bottom:1px solid #d8dee5;background:white;font:15px/1.5 system-ui}.intro h1{margin:0}.intro p{max-width:90ch}</style></head><body><header class="intro"><h1>${escape(title)}</h1><p>Offline API documentation. Interactive requests are disabled. This page and <a href="openapi.json" download>openapi.json</a> are generated from ${sourceLabel} and replaced on every build. Edit that source. Edits in this directory are discarded.</p></header><main id="swagger-ui"></main><script id="openapi" type="application/json">${embedded}</script><script src="swagger-ui-bundle.js"></script><script>SwaggerUIBundle({spec:JSON.parse(document.querySelector('#openapi').textContent),dom_id:'#swagger-ui',deepLinking:true,displayOperationId:true,filter:true,supportedSubmitMethods:[],tryItOutEnabled:false,validatorUrl:null});</script></body></html>\n`;
   await replaceDirectory(document.outputDir, async staging => {
     await writeFile(path.join(staging, "index.html"), html);
     await writeFile(path.join(staging, "openapi.json"), `${JSON.stringify(contract, null, 2)}\n`);
@@ -41,7 +49,7 @@ export async function buildOpenApi(document) {
 }
 
 export async function validateOpenApi(document) {
-  const source = JSON.parse(await readFile(document.source, "utf8"));
+  const source = await loadContract(document.source);
   const generated = JSON.parse(await readFile(path.join(document.outputDir, "openapi.json"), "utf8"));
   if (JSON.stringify(source) !== JSON.stringify(generated)) throw new Error(`${document.id}: generated OpenAPI differs from source`);
   const html = await readFile(path.join(document.outputDir, "index.html"), "utf8");

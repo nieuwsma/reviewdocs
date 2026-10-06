@@ -1,0 +1,6 @@
+{
+  "revision": {
+    "label": "Revision",
+    "definition": "An immutable version of an authored result; accepting a change and approving a revision are separate actions."
+  }
+}

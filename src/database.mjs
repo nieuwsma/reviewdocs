@@ -2,6 +2,8 @@ import { chmod, cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { replaceDirectory } from "./files.mjs";
+import { escapeHtml } from "./paths.mjs";
+import { stylesheet, javascript } from "./ui.mjs";
 
 function run(command, args, options = {}) {
   return new Promise((resolve, reject) => {
@@ -14,6 +16,19 @@ function run(command, args, options = {}) {
 }
 
 const wait = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
+
+const erdDiagrams = [
+  ["Foreign keys", "diagrams/summary/relationships.real.large.svg"],
+  ["Foreign keys, compact", "diagrams/summary/relationships.real.compact.svg"],
+  ["Including implied relationships", "diagrams/summary/relationships.implied.large.svg"],
+  ["Implied relationships, compact", "diagrams/summary/relationships.implied.compact.svg"]
+];
+
+export function erdPage(database) {
+  const name = `${database.database ?? database.id}.${database.schema ?? "public"}`;
+  const figures = erdDiagrams.map(([title, scalable]) => `<figure class="diagram-view" data-diagram><figcaption>${escapeHtml(title)}</figcaption><div class="diagram-controls"><button type="button" data-action="in" aria-label="Zoom in: ${escapeHtml(title)}">+</button><button type="button" data-action="out" aria-label="Zoom out: ${escapeHtml(title)}">−</button><button type="button" data-action="fit">Fit diagram</button><a href="${scalable}">Full-size SVG</a></div><div class="diagram-viewport" tabindex="0" role="region" aria-label="${escapeHtml(title)}; arrow keys scroll, mouse drag pans"><img src="${scalable}" alt="${escapeHtml(title)}"></div></figure>`).join("\n");
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(name)} relationships</title><style>${stylesheet}</style></head><body><main class="content"><h1>${escapeHtml(name)} relationships</h1><p>Foreign-key lines are database constraints. Implied relationships are name-derived hints, not constraints. Use Fit diagram, zoom, arrow-key scrolling or mouse dragging. <a href="index.html">Schema dictionary</a>.</p>${figures}<p class="print-only">Print each full-size SVG in landscape for large diagrams.</p></main><script>${javascript}</script></body></html>\n`;
+}
 
 function substitute(value, variables) {
   return value.replace(/\$\{([A-Z_]+)\}/g, (_, name) => {
@@ -60,9 +75,10 @@ export async function buildDatabaseDocs(configuration, root) {
       const output = path.join(stage, database.id);
       await mkdir(output, { recursive: true });
       await chmod(output, 0o777);
-      await run("docker", ["run", "--rm", "--user", "0:0", "--add-host", "host.docker.internal:host-gateway", "--volume", `${output}:/output`, schemaSpyImage, "-t", "pgsql11", "-host", "host.docker.internal", "-port", port, "-db", dbName, "-s", database.schema ?? "public", "-u", "postgres", "-p", password]);
+      await run("docker", ["run", "--rm", "--user", "0:0", "--add-host", "host.docker.internal:host-gateway", "--volume", `${output}:/output`, schemaSpyImage, "-t", "pgsql11", "-host", "host.docker.internal", "-port", port, "-db", dbName, "-s", database.schema ?? "public", "-u", "postgres", "-p", password, "-imageformat", "svg"]);
       const schema = await run("docker", ["exec", container, "pg_dump", "-U", "postgres", "-d", dbName, "--schema-only", "--no-owner", "--no-privileges"], { capture: true });
       await writeFile(path.join(output, "schema.sql"), schema.replace(/^\\(?:un)?restrict .*$/gm, "").trimStart());
+      await writeFile(path.join(output, "erd.html"), erdPage(database));
     }
     await replaceDirectory(configuration.outputDir, async output => {
       for (const database of configuration.databases ?? []) {

@@ -1,17 +1,7 @@
 # Executive summary
 
-## Baseline
+{{review-summary}}
 
-Record the reviewed commit, dirty-worktree qualification, comparison baseline, date, tool versions, and available test infrastructure.
+## Judgment and remaining acceptance
 
-## Release posture
-
-State whether release is supported, conditionally supported, or blocked, and name the evidence behind that decision.
-
-## Strongest properties
-
-Record the important properties that executable evidence supports.
-
-## Blockers and remediation order
-
-Order work by dependency and operational risk. Distinguish release blockers from other high-severity findings.
+REPLACE_ME: State the release posture within recorded evidence boundaries. Do not infer release acceptance from documentation generation. Link track analyses and explicit remaining gates.

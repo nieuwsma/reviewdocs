@@ -1,53 +1,78 @@
 #!/usr/bin/env node
 import path from "node:path";
 import process from "node:process";
-import { buildAll, checkAll, initializeProject } from "../src/index.mjs";
+import { buildAll, checkAll, initializeProject, adoptProject, verifyAll, executeEvidence } from "../src/index.mjs";
+import { loadConfig } from "../src/config.mjs";
+import { serveDocs, openBrowser, exportDocs } from "../src/delivery.mjs";
 
 function usage() {
   console.log(`reviewdocs <command> [options]
 
 Commands:
-  init [directory]       Create a starter configuration and documentation tree
-  build                  Generate every configured artifact
-  check                  Rebuild, verify determinism, and validate local links
+  init [directory]        Create a complete starter tree (refuses conflicts)
+  adopt [directory]       Add missing files; preserve existing docs/config
+  upgrade [directory]     Upgrade unchanged managed skills; propose conflicts
+  build                   Generate configured artifacts; does not run test lanes
+  check                   Rebuild, verify determinism, links and structured state
+  verify                  Read-only source/output freshness validation
+  evidence                Execute explicitly selected repository evidence lanes
+  serve                   Serve the generated portal on loopback
+  open                    Serve and open the portal in a browser
+  export <directory>      Copy a verified portable portal to a new directory
 
 Options:
-  --config <path>        Configuration file (default: reviewdocs.config.mjs)
-  --only <id,...>        Limit build/check to named collection or artifact IDs
-  --force                Allow init to replace conflicting starter files
-  --help                 Show this help
+  --config <path>          Configuration file (default: reviewdocs.config.mjs)
+  --only <id,...>          Select artifact IDs or explicit evidence lane IDs
+  --dry-run               Adoption plan without writes
+  --profile complete      Complete three-category scaffold
+  --skills / --no-skills   Include/exclude packaged skills during adoption
+  --port <number>          Loopback port; default chooses an available port
+  --force                 Init only: replace starter-file conflicts
+  --help                  Show this help
 `);
 }
-
 function parse(argv) {
-  const result = { command: argv[0], directory: undefined, config: "reviewdocs.config.mjs", only: [], force: false };
-  for (let index = 1; index < argv.length; index += 1) {
-    const argument = argv[index];
-    if (argument === "--help" || argument === "-h") result.help = true;
-    else if (argument === "--force") result.force = true;
-    else if (argument === "--config") result.config = argv[++index];
-    else if (argument === "--only") result.only = argv[++index].split(",").filter(Boolean);
-    else if (!result.directory && result.command === "init") result.directory = argument;
-    else throw new Error(`unknown argument: ${argument}`);
+  const result = { command: argv[0], config: "reviewdocs.config.mjs", only: [], force: false, skills: true, port: 0 };
+  const value = index => { if (!argv[index] || argv[index].startsWith("--")) throw new Error(`missing value for ${argv[index - 1]}`); return argv[index]; };
+  for (let index = 1; index < argv.length; index++) {
+    const arg = argv[index];
+    if (["--help", "-h"].includes(arg)) result.help = true;
+    else if (arg === "--force") result.force = true;
+    else if (arg === "--dry-run") result.dryRun = true;
+    else if (arg === "--skills") result.skills = true;
+    else if (arg === "--no-skills") result.skills = false;
+    else if (arg === "--profile") result.profile = value(++index);
+    else if (arg === "--config") result.config = value(++index);
+    else if (arg === "--only") result.only = value(++index).split(",").filter(Boolean);
+    else if (arg === "--port") result.port = Number(value(++index));
+    else if (!result.directory && ["init", "adopt", "upgrade", "export"].includes(result.command)) result.directory = arg;
+    else throw new Error(`unknown argument: ${arg}`);
   }
+  if (!Number.isInteger(result.port) || result.port < 0 || result.port > 65535) throw new Error("invalid port");
+  if (result.force && result.command !== "init") throw new Error("--force is only supported for init; adoption preserves conflicts");
   return result;
 }
-
 try {
   const options = parse(process.argv.slice(2));
-  if (!options.command || options.help) {
-    usage();
-    process.exitCode = options.command ? 0 : 1;
-  } else if (options.command === "init") {
-    await initializeProject(path.resolve(options.directory ?? "."), { force: options.force });
-  } else if (options.command === "build") {
-    await buildAll(path.resolve(options.config), { only: options.only });
-  } else if (options.command === "check") {
-    await checkAll(path.resolve(options.config), { only: options.only });
-  } else {
-    throw new Error(`unknown command: ${options.command}`);
-  }
-} catch (error) {
-  console.error(`reviewdocs: ${error.message}`);
-  process.exitCode = 1;
-}
+  const configPath = path.resolve(options.config);
+  if (!options.command || options.help) { usage(); process.exitCode = options.command ? 0 : 1; }
+  else if (options.command === "init") await initializeProject(path.resolve(options.directory ?? "."), { force: options.force });
+  else if (["adopt", "upgrade"].includes(options.command)) await adoptProject(path.resolve(options.directory ?? "."), options);
+  else if (options.command === "build") await buildAll(configPath, options);
+  else if (options.command === "check") await checkAll(configPath, options);
+  else if (options.command === "verify") await verifyAll(configPath, options);
+  else if (options.command === "evidence") { const results = await executeEvidence(configPath, options); if (results.some(r => r.status !== "passed")) process.exitCode = 1; }
+  else if (options.command === "export") {
+    if (!options.directory) throw new Error("export requires a destination directory");
+    await verifyAll(configPath);
+    const config = await loadConfig(configPath);
+    await exportDocs(config, path.resolve(options.directory));
+  } else if (["serve", "open"].includes(options.command)) {
+    const config = await loadConfig(configPath);
+    if (!config.landing) throw new Error("serve/open requires landing configuration; build first");
+    const { server, url } = await serveDocs(config.landing.outputDir, options);
+    console.log(`Documentation: ${url}\nServing generated files only. Ctrl+C stops the server.`);
+    if (options.command === "open") openBrowser(url);
+    for (const signal of ["SIGINT", "SIGTERM"]) process.once(signal, () => server.close(() => process.exit(0)));
+  } else throw new Error(`unknown command: ${options.command}`);
+} catch (error) { console.error(`reviewdocs: ${error.message}`); process.exitCode = 1; }

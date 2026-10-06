@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "formatVersion",
+    "toolkitVersion",
+    "files"
+  ],
+  "properties": {
+    "formatVersion": {
+      "const": 1
+    },
+    "toolkitVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "files": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "hash",
+          "content"
+        ],
+        "properties": {
+          "hash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "content": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "title": "install"
+}

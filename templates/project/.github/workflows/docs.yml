@@ -1,3 +1,5 @@
+# reviewdocs must be a devDependency committed in package.json and the lockfile.
+# npm ci installs it. This workflow does not install the package on its own.
 name: Documentation
 on:
   pull_request:

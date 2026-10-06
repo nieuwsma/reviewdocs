@@ -18,3 +18,17 @@ test("inventories first-party source and separates tests", async () => {
   assert.equal(inventory.totals.files, 2);
   assert.equal(inventory.totals.testNonblank, 1);
 });
+
+test('physical counts handle empty files, final newlines, comments and type/test splits', async () => {
+ const root=await mkdtemp(path.join(os.tmpdir(),'reviewdocs-counts-'));
+ await mkdir(path.join(root,'tests'));
+ await writeFile(path.join(root,'main.go'),'// comment\npackage main\n\n');
+ await writeFile(path.join(root,'empty.go'),'');
+ await writeFile(path.join(root,'tests/main_test.go'),'package main');
+ const output=path.join(root,'out.json');await buildInventory({root,output,extensions:['.go']});
+ const report=JSON.parse(await readFile(output,'utf8'));
+ assert.equal(report.totals.lines,4);assert.equal(report.totals.nonblank,3);
+ assert.equal(report.languages.go.files,3);assert.equal(report.languages.go.testNonblank,1);
+ assert.equal(report.categories.productionAndTooling.nonblank,2);
+ assert.equal(report.categories.tests.lines,1);
+});

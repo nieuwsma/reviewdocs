@@ -1,0 +1,10 @@
+{
+  "revision": {
+    "label": "Revision",
+    "definition": "An immutable saved version of the note. A later save creates a new version."
+  },
+  "approval": {
+    "label": "Approval",
+    "definition": "An explicit human decision tied to the current saved revision; later edits clear it."
+  }
+}

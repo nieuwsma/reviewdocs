@@ -1,0 +1,64 @@
+{
+  "formatVersion": 1,
+  "id": "synthetic-example",
+  "source": {
+    "description": "Checked-in Note Desk demonstration; source inspection only."
+  },
+  "tracks": [
+    {
+      "id": "data-contracts",
+      "report": "tracks/data-and-contracts.md"
+    },
+    {
+      "id": "workflow-recovery",
+      "report": "tracks/workflow-and-recovery.md"
+    },
+    {
+      "id": "frontend-operations",
+      "report": "tracks/frontend-and-operations.md"
+    },
+    {
+      "id": "testing-acceptance",
+      "report": "tracks/testing-and-acceptance.md"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "source-read",
+      "status": "passed",
+      "proof": "source read",
+      "description": "Browser-local demo scope",
+      "path": "docs/reviews/source-inspection.md"
+    }
+  ],
+  "findings": [
+    {
+      "id": "DEMO-001",
+      "title": "Single-browser local persistence has no production trust or recovery guarantee",
+      "track": "frontend-operations",
+      "exitCondition": "Keep the limitation explicit; build authenticated/server recovery before proposing production use.",
+      "history": [
+        {
+          "date": "2026-10-06",
+          "status": "open",
+          "severity": "observation",
+          "confidence": "high",
+          "reason": "Synthetic local-only design",
+          "evidence": [
+            "source-read"
+          ]
+        },
+        {
+          "date": "2026-10-06",
+          "status": "accepted",
+          "severity": "observation",
+          "confidence": "high",
+          "reason": "Accept only for the disposable toolkit example",
+          "evidence": [
+            "source-read"
+          ]
+        }
+      ]
+    }
+  ]
+}

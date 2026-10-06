@@ -1,0 +1,27 @@
+{
+  "formatVersion": 1,
+  "id": "initial-authoring",
+  "source": {
+    "description": "Starter only; no product review has been performed."
+  },
+  "tracks": [
+    {
+      "id": "data-contracts",
+      "report": "tracks/data-and-contracts.md"
+    },
+    {
+      "id": "workflow-recovery",
+      "report": "tracks/workflow-and-recovery.md"
+    },
+    {
+      "id": "frontend-operations",
+      "report": "tracks/frontend-and-operations.md"
+    },
+    {
+      "id": "testing-acceptance",
+      "report": "tracks/testing-and-acceptance.md"
+    }
+  ],
+  "evidence": [],
+  "findings": []
+}

@@ -2,11 +2,12 @@ import { createHash } from "node:crypto";
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-export async function filesBelow(directory) {
+export async function filesBelow(directory, { skip = () => false } = {}) {
   const result = [];
   for (const entry of await readdir(directory, { withFileTypes: true })) {
     const candidate = path.join(directory, entry.name);
-    if (entry.isDirectory()) result.push(...await filesBelow(candidate));
+    if (skip(candidate, entry)) continue;
+    if (entry.isDirectory()) result.push(...await filesBelow(candidate, { skip }));
     if (entry.isFile()) result.push(candidate);
   }
   return result.sort();

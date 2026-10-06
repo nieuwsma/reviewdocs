@@ -1,18 +1,7 @@
-# Evidence matrix
+# Evidence lane selection
 
-Replace every placeholder before the first campaign. Keep commands explicit so later campaigns remain comparable.
+The consumer-owned commands are in `docs/review/evidence-matrix.md` and `reviewdocs.config.mjs`. Adapt those files, not this managed procedure. Keep commands comparable across campaigns and declare production input roots, retained outputs, proof mode and required gates.
 
-| Evidence | Command | Retained output | Required? |
-|---|---|---|---|
-| Unit tests | `<unit-test-command>` | `docs/generated/coverage/unit-test.log` | Yes |
-| Race or concurrency tests | `<race-test-command>` | `docs/generated/coverage/race-test.log` | When supported |
-| Integration tests | `<integration-test-command>` | `docs/generated/coverage/integration-test.log` | Yes |
-| Browser tests and accessibility | `<browser-test-command>` | `docs/generated/coverage/browser/` | For browser applications |
-| Static analysis | `<static-analysis-command>` | `docs/generated/coverage/static-analysis.log` | Yes |
-| OpenAPI validation | `npx reviewdocs check --only <api-id>` | `docs/generated/api/` | For public APIs |
-| Database schema | `npx reviewdocs build --only <database-id>` | `docs/generated/database/` | For relational stores |
-| Source inventory | `npx reviewdocs build --only inventory` | `docs/generated/inventory.json` | Yes |
-| Documentation | `npx reviewdocs check` | `docs/generated/` | Yes |
-| Deployed schema drift | `<read-only-schema-comparison-command>` | `docs/review/schema-drift.md` | When a deployment is available |
+Choose applicable unit, concurrency, integration, browser/accessibility, static analysis, contract, schema, inventory, documentation, canary and deployment lanes. A product without a relational store or browser does not need those lanes; record omissions. Database evidence uses empty isolated databases and source migration paths. Deployed schema comparison is read-only and schema-only when available.
 
-For each command, record whether it executed fully, passed, failed, or could not run. Never present skipped database tests or mocked browser tests as full-stack proof.
+Run explicit lanes with `reviewdocs evidence --only <lane-id>`. Document passed, failed, partial, unavailable and not-run outcomes. Retain failures under their run-qualified directory; use complete passing pointers only within their source/proof boundary. Mocked browser rendering, source reading and skipped SQL fixtures are not full-stack proof. The toolkit checks fingerprints and structure, not release judgment.

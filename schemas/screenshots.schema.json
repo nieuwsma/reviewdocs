@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "formatVersion",
+    "source",
+    "mode",
+    "viewport",
+    "screenshots"
+  ],
+  "properties": {
+    "formatVersion": {
+      "const": 1
+    },
+    "source": {
+      "type": "object",
+      "required": [
+        "inputHash"
+      ],
+      "properties": {
+        "commit": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "inputHash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "mode": {
+      "type": "string",
+      "minLength": 1
+    },
+    "viewport": {
+      "type": "object",
+      "required": [
+        "width",
+        "height"
+      ],
+      "properties": {
+        "width": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "screenshots": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "file",
+          "chapter",
+          "alt",
+          "sha256"
+        ],
+        "properties": {
+          "file": {
+            "type": "string",
+            "minLength": 1
+          },
+          "chapter": {
+            "type": "string",
+            "minLength": 1
+          },
+          "alt": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        }
+      }
+    }
+  },
+  "title": "screenshots"
+}

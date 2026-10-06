@@ -17,4 +17,20 @@ test("builds a self-contained offline OpenAPI browser", async () => {
   const embedded = html.match(/<script id="openapi"[\s\S]*?<\/script>/)?.[0];
   assert.ok(embedded);
   assert.doesNotMatch(embedded, /"\$ref"/);
+  assert.match(html, /replaced on every build/);
+  assert.match(html, /Edit that source/);
+  assert.match(html, /openapi\.json/);
+});
+
+test("reads an OpenAPI YAML source", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "reviewdocs-api-yaml-"));
+  const source = path.join(root, "openapi.yaml");
+  const outputDir = path.join(root, "output");
+  await writeFile(source, "openapi: 3.0.3\ninfo:\n  title: YAML API\n  version: \"1\"\npaths:\n  /health:\n    get:\n      responses:\n        \"200\":\n          description: ok\n");
+  const document = { id: "api", source, outputDir };
+  await buildOpenApi(document);
+  await validateOpenApi(document);
+  const generated = JSON.parse(await readFile(path.join(outputDir, "openapi.json"), "utf8"));
+  assert.equal(generated.info.title, "YAML API");
+  assert.equal(generated.paths["/health"].get.responses["200"].description, "ok");
 });

@@ -18,6 +18,8 @@ export async function buildDiagrams(group) {
   let renderer;
   try { renderer = path.join(path.dirname(require.resolve("@mermaid-js/mermaid-cli/package.json")), "src", "cli.js"); }
   catch { throw new Error("Mermaid rendering requires optional dependency @mermaid-js/mermaid-cli"); }
+  try { require.resolve("puppeteer", { paths: [path.dirname(renderer)] }); }
+  catch { throw new Error("Mermaid rendering requires the CLI's Puppeteer peer and an installed browser; Markdown builds do not require them"); }
   const sources = (await readdir(group.sourceDir)).filter(name => name.endsWith(".mmd")).sort();
   await replaceDirectory(group.outputDir, async staging => {
     for (const source of sources) await run(process.execPath, [renderer, "-i", path.join(group.sourceDir, source), "-o", path.join(staging, source.replace(/\.mmd$/, ".svg")), "-b", "transparent"]);
