@@ -1,5 +1,6 @@
+import { publish } from "./transactions.mjs";
 import { createHash } from "node:crypto";
-import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 export async function filesBelow(directory, { skip = () => false } = {}) {
@@ -24,18 +25,8 @@ export async function digestDirectory(directory) {
   return hash.digest("hex");
 }
 
-export async function replaceDirectory(finalDirectory, writer) {
-  const staging = `${finalDirectory}.staging`;
-  await rm(staging, { recursive: true, force: true });
-  await mkdir(staging, { recursive: true });
-  try {
-    await writer(staging);
-    await rm(finalDirectory, { recursive: true, force: true });
-    await rename(staging, finalDirectory);
-  } catch (error) {
-    await rm(staging, { recursive: true, force: true });
-    throw error;
-  }
+export async function replaceDirectory(finalDirectory, writer, options = {}) {
+  return publish(finalDirectory, writer, options);
 }
 
 export async function writeText(filename, value) {

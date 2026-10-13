@@ -1,5 +1,6 @@
 node_modules/
 example/docs/generated/
+example/.reviewdocs/
 *.tgz
 .DS_Store
 .local/

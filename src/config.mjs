@@ -1,16 +1,23 @@
+import {assertNoSymlink} from "./filesystem-guards.mjs";
+export {assertNoSymlink} from "./filesystem-guards.mjs";
+import {validateProducerSettings} from "./config-validation.mjs";
+import {selectArtifacts} from "./plan.mjs";
 import { pathToFileURL } from "node:url";
 import path from "node:path";
 import { inside, safePath, outputName } from "./paths.mjs";
-import { lstat, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 let loadSequence = 0;
 
-export async function loadConfig(filename) {
+export async function loadConfig(filename, {only = [], inspect = false} = {}) {
   const absolute = path.resolve(filename);
   const imported = await import(`${pathToFileURL(absolute).href}?loaded=${Date.now()}-${++loadSequence}`);
   const config = imported.default;
   if (!config || typeof config !== "object") throw new Error(`${filename} must export a configuration object as default`);
   const root = path.dirname(absolute);
   const resolve = value => path.resolve(root, value);
+  const stateDir = resolve(config.stateDir ?? ".reviewdocs");
+  if (!inside(root,stateDir) || stateDir===root) throw new Error("stateDir must be below project root");
+  await assertNoSymlink(root,stateDir);
   const collections = (config.collections ?? []).map(collection => ({
     ...collection,
     sourceDir: resolve(collection.sourceDir),
@@ -32,7 +39,7 @@ export async function loadConfig(filename) {
   const evidence = (config.evidence ?? []).map(lane => ({ ...lane, cwd: resolve(lane.cwd ?? "."), outputDir: resolve(lane.outputDir) }));
   const campaign = config.campaign ? { ...config.campaign, source: resolve(config.campaign.source), previous: config.campaign.previous ? resolve(config.campaign.previous) : undefined, outputDir: resolve(config.campaign.outputDir) } : undefined;
   if (campaign) {
-    const ledger = JSON.parse(await readFile(campaign.source, "utf8"));
+    let ledger;try {ledger = JSON.parse(await readFile(campaign.source, "utf8"));} catch(error) {if(!inspect)throw error;ledger={}; campaign.inspectionError=error.message;}
     campaign.evidenceInputs = (ledger.evidence ?? []).filter(e => e.path).map(e => { safePath(root, e.path); return e.path; });
     campaign.evidenceInputs.push(...(ledger.tracks ?? []).filter(t => t.report).map(t => {
       const report = safePath(path.dirname(campaign.source), t.report);
@@ -48,8 +55,9 @@ export async function loadConfig(filename) {
     await assertNoSymlink(root, presentation.module);
     await assertNoSymlink(root, presentation.assets);
   }
-  const result = { ...config, presentation, filename: absolute, root, collections, diagrams, openapi, inventory, databaseDocs, evidence, campaign, screenshots, landing };
+  const result = { ...config, stateDir, presentation, filename: absolute, root, collections, diagrams, openapi, inventory, databaseDocs, evidence, campaign, screenshots, landing };
   result.artifacts = [...diagrams, ...(inventory ? [{ ...inventory, id: inventory.id ?? "inventory" }] : []), ...openapi, ...(databaseDocs ? [Object.assign(databaseDocs, { id: databaseDocs.id ?? "database" })] : []), ...(campaign ? [campaign] : []), ...collections, ...(landing ? [landing] : [])];
+  if(landing) landing.dependsOn=[...new Set([...(landing.dependsOn??[]),...result.artifacts.filter(a=>a!==landing && a.outputDir && inside(landing.outputDir,a.outputDir)).map(a=>a.id)])];
   if (presentation) {
     for (const artifact of result.artifacts) {
       const output = artifact.outputDir ?? artifact.output;
@@ -59,7 +67,8 @@ export async function loadConfig(filename) {
     }
   }
   for (const collection of collections) {
-    const pages = await Promise.all((collection.pages??[]).map(p=>readFile(safePath(collection.sourceDir,p.file),'utf8')));
+    if (only.length && !only.includes(collection.id) && !result.artifacts.some(a=>only.includes(a.id) && (a.dependsOn??[]).includes(collection.id))) continue;
+    const pages = await Promise.all((collection.pages??[]).map(async p=>{try{return await readFile(safePath(collection.sourceDir,p.file),'utf8');}catch(error){if(!inspect)throw error;return '';}}));
     if (pages.some(text=>text.includes('{{inventory-report}}'))) {
       if (!inventory) throw new Error(`${collection.id}: inventory-report needs inventory configuration`);
       collection.dependsOn = [...new Set([...(collection.dependsOn??[]), inventory.id??'inventory'])];
@@ -120,10 +129,18 @@ export async function loadConfig(filename) {
   result.artifacts = result.artifacts.map(a => a.id === inventory?.id || inventory && a.output === inventory.output ? Object.assign(inventory, a) : a);
   if (campaign) Object.assign(campaign, result.artifacts.find(a => a.id === campaign.id));
   if (databaseDocs) Object.assign(databaseDocs, result.artifacts.find(a => a.id === (databaseDocs.id ?? "database")));
+  for (const artifact of result.artifacts) artifact.provenanceFile=path.join(stateDir,"provenance",`${artifact.id}.json`);
+  for (const publicRoot of result.artifacts.filter(a=>a.outputDir).map(a=>a.outputDir)) {
+    if (inside(publicRoot,stateDir)) throw new Error("private stateDir overlaps public output");
+    for (const lane of evidence) if (inside(publicRoot,lane.outputDir)) { lane.legacyOutputDir=lane.outputDir; lane.outputDir=path.join(stateDir,"evidence",lane.id); }
+    if (inventory && inside(publicRoot,inventory.output)) { inventory.legacyOutput=inventory.output; inventory.output=path.join(stateDir,"artifacts",`${inventory.id}.json`); }
+  }
   for (const lane of evidence) {
     if (!Array.isArray(lane.command) || !lane.command.length || !["source read", "mocked", "integration", "canary", "deployment", "manual"].includes(lane.proof)) throw new Error(`${lane.id}: evidence requires command array and proof boundary`);
     if (!(lane.inputs?.length > 1)) throw new Error(`${lane.id}: declare production inputs for evidence`);
     if (!inside(root, lane.cwd)) throw new Error(`${lane.id}: cwd outside project`);
+    if (lane.command.some(value=>typeof value!=="string" || !value)) throw new Error(`${lane.id}: command must contain nonempty strings`);
+    if (lane.maxLogBytes!==undefined && (!Number.isSafeInteger(lane.maxLogBytes) || lane.maxLogBytes<1 || lane.maxLogBytes>16777216)) throw new Error(`${lane.id}: invalid maxLogBytes`);
     if (lane.timeoutMs !== undefined && (!Number.isFinite(lane.timeoutMs) || lane.timeoutMs <= 0)) throw new Error(`${lane.id}: invalid timeoutMs`);
     for (const output of [...(lane.outputs ?? []), ...(lane.resultFile ? [lane.resultFile] : [])]) safePath(lane.outputDir, output);
   }
@@ -132,18 +149,11 @@ export async function loadConfig(filename) {
     for (const input of group.inputs) safePath(root, input);
     if (!inside(root, group.manifest) || !inside(root, group.assets)) throw new Error(`${group.id}: screenshot paths outside root`);
   }
+  validateProducerSettings(result);
+  selectArtifacts(result);
   return result;
 }
 
-export async function assertNoSymlink(root, target) {
-  let current = root;
-  for (const segment of path.relative(root, target).split(path.sep).filter(Boolean)) {
-    current = path.join(current, segment);
-    let metadata;
-    try { metadata = await lstat(current); } catch (error) { if (error.code === "ENOENT") continue; throw error; }
-    if (metadata.isSymbolicLink()) throw new Error(`refusing output through symlink: ${current}`);
-  }
-}
 
 function inferInputs(config, artifact) {
   const relative = value => path.relative(config.root, value);
@@ -154,10 +164,6 @@ function inferInputs(config, artifact) {
   // Inventory and database/evidence generators must declare production input roots.
   if (artifact.output && artifact.root) return artifact.include ?? [relative(artifact.root) || "."];
   // Legacy configurations still build; strict freshness cannot certify their producer.
-  if (artifact.databases) { if (!artifact.inputs?.length) console.warn("database docs have no producer inputs; configure migration roots for qualified freshness"); return []; }
+  if (artifact.databases) { if (!artifact.inputs?.length)  return []; }
   return [];
-}
-
-export function artifactSelected(id, only) {
-  return only.length === 0 || only.includes(id);
 }

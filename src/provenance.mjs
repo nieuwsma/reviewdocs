@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readFile, writeFile, readdir } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { exists } from "./files.mjs";
@@ -18,7 +18,7 @@ export async function inputDigest(root, inputs, { exclude = [] } = {}) {
     if (metadata.isSymbolicLink()) throw new Error(`input symlink requires explicit materialization: ${rel}`);
     if (metadata.isDirectory()) {
       for (const entry of (await readdir(filename)).sort()) {
-        if (excludedSegments.has(entry)) continue;
+        if (excludedSegments.has(entry) || entry.startsWith(".reviewdocs-stage-") || entry.includes(".reviewdocs-backup-") || entry.endsWith(".reviewdocs-lock")) continue;
         await visit(path.join(filename, entry));
       }
     } else if (metadata.isFile()) records.set(rel, hash(await readFile(filename)));
@@ -31,18 +31,24 @@ export function sourceState(root) {
     return { commit: execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim(), dirty: Boolean(execFileSync("git", ["status", "--porcelain"], { cwd: root, encoding: "utf8" }).trim()) };
   } catch { return { commit: null, dirty: null }; }
 }
-export const provenancePath = artifact => artifact.outputDir ? path.join(artifact.outputDir, ".reviewdocs-provenance.json") : `${artifact.output}.provenance.json`;
+export const provenancePath = artifact => artifact.provenanceFile ?? (artifact.outputDir ? path.join(artifact.outputDir, ".reviewdocs-provenance.json") : `${artifact.output}.provenance.json`);
 export async function outputDigest(artifact) {
   if (artifact.portal) {
-    if (!artifact.presentationAssets) return hash(await readFile(path.join(artifact.outputDir, "index.html")));
-    return hash(JSON.stringify([hash(await readFile(path.join(artifact.outputDir, "index.html"))), hash(await readFile(path.join(artifact.outputDir, "site.js"))), await inputDigest(artifact.outputDir, [artifact.presentationAssets])]));
+    const {publishedFiles,publicationManifest}=await import('./publication.mjs');
+    const files=await publishedFiles(artifact.outputDir),records=[];
+    for(const name of [...files,publicationManifest].sort()) {
+      let source=path.join(artifact.outputDir,name);
+      if(!await exists(source) && artifact.publicationBase) source=path.join(artifact.publicationBase,name);
+      records.push([name,hash(await readFile(source))]);
+    }
+    return hash(JSON.stringify(records));
   }
   if (!artifact.outputDir) return hash(await readFile(artifact.output));
   const files = [];
   async function visit(dir) {
     for (const entry of await readdir(dir, { withFileTypes: true })) {
       const filename = path.join(dir, entry.name);
-      if (filename === provenancePath(artifact)) continue;
+      if (entry.name === ".reviewdocs-provenance.json") continue;
       if (entry.isSymbolicLink()) throw new Error(`output contains symlink: ${filename}`);
       if (entry.isDirectory()) await visit(filename);
       else if (entry.isFile()) files.push([slash(path.relative(artifact.outputDir, filename)), hash(await readFile(filename))]);
@@ -51,7 +57,7 @@ export async function outputDigest(artifact) {
   await visit(artifact.outputDir);
   return hash(JSON.stringify(files.sort(([a], [b]) => a.localeCompare(b))));
 }
-export async function recordProvenance(config, artifact, expectedInputHash) {
+export async function createProvenance(config, artifact, expectedInputHash) {
   const inputHash = await inputDigest(config.root, artifact.inputs, { exclude: artifact.inputExclude });
   if (expectedInputHash && expectedInputHash !== inputHash) throw new Error(`${artifact.id}: inputs changed while building; no current provenance recorded`);
   const dependencies = [];
@@ -61,8 +67,9 @@ export async function recordProvenance(config, artifact, expectedInputHash) {
     const proof=JSON.parse(await readFile(provenancePath(dependency),'utf8'));
     dependencies.push({artifact:id,inputHash:proof.inputHash,outputHash:proof.outputHash});
   }
+  if(artifact.portal) artifact.publicationBase=config.artifacts.find(item=>item.id===artifact.id)?.outputDir;
   const manifest = { dependencies, formatVersion: 1, artifact: artifact.id, toolkitVersion: version, source: sourceState(config.root), inputs: artifact.inputs, qualifiedInputs: !artifact.databases || artifact.inputs.length > 1, inputHash, outputHash: await outputDigest(artifact), status: "built" };
-  await writeFile(provenancePath(artifact), `${JSON.stringify(manifest, null, 2)}\n`);
+  return `${JSON.stringify(manifest, null, 2)}\n`;
 }
 export async function verifyProvenance(config, artifact, { allowUnqualified = false } = {}) {
   if (!await exists(provenancePath(artifact))) throw new Error(`${artifact.id}: missing provenance; build this artifact explicitly`);
@@ -77,4 +84,9 @@ export async function verifyProvenance(config, artifact, { allowUnqualified = fa
     if (!recorded || recorded.inputHash!==proof.inputHash || recorded.outputHash!==proof.outputHash) throw new Error(`${artifact.id}: stale dependency ${id}; regenerate this artifact`);
   }
   if (manifest.outputHash !== await outputDigest(artifact)) throw new Error(`${artifact.id}: generated output was changed or is incomplete`);
+}
+
+export async function recordProvenance(config, artifact, expectedInputHash) {
+ const {atomicWrite}=await import("./transactions.mjs");
+ await atomicWrite(provenancePath(artifact),await createProvenance(config,artifact,expectedInputHash));
 }

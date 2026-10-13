@@ -8,6 +8,7 @@ import { stylesheet, javascript } from "./ui.mjs";
 import { renderInventory } from "./inventory.mjs";
 import { renderCampaign } from "./campaign.mjs";
 
+import { assertIllustrationAssets, assertDocumentationLink, assertPageLinks } from "./publication.mjs";
 import { copyPresentation } from "./presentation.mjs";
 
 marked.use(gfmHeadingId({ prefix: "" }));
@@ -20,12 +21,13 @@ export function projectAudience(markdown, audience) {
 function rewriteLinks(html, page, collection, collections, publishedFiles) {
   const sourceMap = new Map(publishedFiles);
   // Local projection wins when the same source is published more than once.
-  for (const candidate of [...collections.filter(c => c !== collection), collection]) for (const p of candidate.pages) sourceMap.set(path.resolve(candidate.sourceDir, p.file), path.join(candidate.outputDir, outputName(p)));
+  for (const candidate of [...collections.filter(c => c !== collection), collection]) for (const p of candidate.pages) sourceMap.set(path.resolve(candidate.sourceDir, p.file), path.join(candidate.renderOutputDir ?? candidate.outputDir, outputName(p)));
   return html.replace(/\b(href|src)=(?:"([^"]+)"|'([^']+)')/g, (_, attribute, double, single) => {
     let target = (double ?? single).replaceAll("&amp;", "&");
     if (collection.portable && /^file:/i.test(target)) throw new Error(`${collection.id}: nonportable file link ${target}`);
     if (/^(?:[a-z]+:|#|\/\/)/i.test(target)) {
       if (collection.bundled && !target.startsWith("#") && !(collection.allowedExternal ?? []).some(prefix => target.startsWith(prefix))) throw new Error(`${collection.id}: unbundled external link ${target}`);
+      if (attribute === "href") assertDocumentationLink(target);
       return `${attribute}="${escape(target)}"`;
     }
     if (collection.rewrites?.[target]) target = collection.rewrites[target];
@@ -34,10 +36,11 @@ function rewriteLinks(html, page, collection, collections, publishedFiles) {
       const [pathname, query = ""] = pathWithQuery.split("?", 2);
       const absolute = path.resolve(collection.sourceDir, path.dirname(page.file), decodeURIComponent(pathname));
       const asset = (collection.assets ?? []).find(a => inside(path.resolve(collection.sourceDir, a), absolute));
-      const mapped = sourceMap.get(absolute) ?? (asset ? path.join(collection.outputDir, path.relative(collection.sourceDir, absolute)) : absolute);
-      target = slash(path.relative(path.dirname(path.join(collection.outputDir, outputName(page))), mapped)) + (query ? `?${query}` : "") + (fragment ? `#${fragment}` : "");
+      const mapped = sourceMap.get(absolute) ?? (asset ? path.join(collection.renderOutputDir ?? collection.outputDir, path.relative(collection.sourceDir, absolute)) : absolute);
+      target = slash(path.relative(path.dirname(path.join(collection.renderOutputDir ?? collection.outputDir, outputName(page))), mapped)) + (query ? `?${query}` : "") + (fragment ? `#${fragment}` : "");
     }
-    if (collection.bundled && !inside(collection.outputDir, path.resolve(path.dirname(path.join(collection.outputDir, outputName(page))), target.split(/[?#]/)[0]))) throw new Error(`${collection.id}: link leaves help bundle: ${target}; mark contributor content explicitly`);
+    if (attribute === "href") assertDocumentationLink(target);
+    if (collection.bundled && !inside(collection.renderOutputDir ?? collection.outputDir, path.resolve(path.dirname(path.join(collection.renderOutputDir ?? collection.outputDir, outputName(page))), target.split(/[?#]/)[0]))) throw new Error(`${collection.id}: link leaves help bundle: ${target}; mark contributor content explicitly`);
     return `${attribute}="${escape(target)}"`;
   });
 }
@@ -47,6 +50,7 @@ export async function buildCollection(collection, { collections = [collection], 
   const pages = collection.pages ?? [];
   if (!pages.length) throw new Error(`collection ${collection.id} has no pages`);
   const glossary = collection.glossary ? JSON.parse(await readFile(collection.glossary, "utf8")) : {};
+  for (const asset of collection.assets ?? []) await assertIllustrationAssets(path.resolve(collection.sourceDir, asset));
   await replaceDirectory(collection.outputDir, async staging => {
     for (const [index, page] of pages.entries()) {
       let markdown = projectAudience(await readFile(path.join(collection.sourceDir, page.file), "utf8"), collection.audience);
@@ -59,7 +63,7 @@ export async function buildCollection(collection, { collections = [collection], 
         }
         if (key.startsWith("review-")) {
           if (!campaign) throw new Error(`${collection.id}: ${key} needs campaign configuration`);
-          return renderCampaign(campaign, key, { evidenceHref: e => e.path && root ? slash(path.relative(path.dirname(path.join(collection.sourceDir, page.file)), path.resolve(root, e.path))) : undefined });
+          return renderCampaign(campaign, key);
         }
         const term = glossary[key];
         if (!term?.label || !term?.definition) throw new Error(`unknown glossary term: ${key}`);
@@ -70,11 +74,6 @@ export async function buildCollection(collection, { collections = [collection], 
       });
       if (page.glossary) markdown += `\n\n${Object.entries(glossary).map(([key, term]) => `<h2 id="${escape(key)}">${escape(term.label)}</h2>\n<p>${escape(term.definition)}</p>`).join("\n\n")}`;
       let body = rewriteLinks(await marked.parse(markdown), page, collection, collections, publishedFiles);
-      body = body.replace(/<img src="([^"]+)" alt="([^"]*)"\s*\/?>/g, (whole, src, alt) => {
-        if (!alt.trim()) throw new Error(`${page.file}: image needs meaningful alternative text`);
-        if (collection.screenshots && /\.(?:png|jpe?g|webp)(?:[?#]|$)/i.test(src)) return `<a class="screenshot" href="${src}" target="_blank" rel="noopener" aria-label="Open full-size screenshot: ${alt}"><img src="${src}" alt="${alt}" loading="lazy"></a>`;
-        return whole;
-      });
       const headings = [...body.matchAll(/<h([23]) id="([^"]+)">([\s\S]*?)<\/h\1>/g)];
       const toc = headings.length ? `<details class="contents"><summary>On this page</summary><ul>${headings.map(([, , id, title]) => `<li><a href="#${id}">${title.replace(/<[^>]*>/g, "")}</a></li>`).join("")}</ul></details>` : "";
       let group;
@@ -87,6 +86,7 @@ export async function buildCollection(collection, { collections = [collection], 
       const artifacts = (collection.artifacts ?? []).map(link => {
         if (collection.portable && /^file:/i.test(link.href)) throw new Error(`${collection.id}: nonportable artifact link`);
         if (collection.bundled) throw new Error(`${collection.id}: help bundles cannot contain artifact navigation`);
+        assertDocumentationLink(link.href);
         const href = /^[a-z]+:|^\//i.test(link.href) ? link.href : slash(path.relative(path.dirname(outputName(page)), link.href));
         return `<a href="${escape(href)}">${escape(link.label)}</a>`;
       }).join("\n");
@@ -102,6 +102,7 @@ export async function buildCollection(collection, { collections = [collection], 
         links: (collection.artifacts ?? []).map(link => ({ ...link, href: /^[a-z]+:|^\//i.test(link.href) ? link.href : slash(path.relative(path.dirname(outputName(page)), link.href)) })),
         body: `${toc}${body}${adjacent}<footer class="provenance">${collection.bundled ? 'Bundled application help.' : 'Build and evidence provenance: .reviewdocs-provenance.json.'}</footer>`
       });
+      assertPageLinks(html);
       const filename = path.join(staging, outputName(page));
       await mkdir(path.dirname(filename), { recursive: true });
       await writeFile(filename, html);

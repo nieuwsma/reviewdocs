@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 const hasCaptures = existsSync(new URL("./docs/user/assets/screenshots/manifest.json", import.meta.url));
 const referencePages = [
   { file: "README.md", output: "index.html", label: "Start here", group: "System reference" },
@@ -17,7 +17,7 @@ export default {
   collections: [
     {
       id: "reference", title: "Note Desk System Reference", subtitle: "Current behavior and architecture",
-      assets: ["assets"], strict: true, sourceDir: "docs/system", outputDir: "docs/generated/reference", glossary: "docs/system/glossary.json",
+      assets: ["assets/context.svg"], strict: true, sourceDir: "docs/system", outputDir: "docs/generated/reference", glossary: "docs/system/glossary.json",
       pages: referencePages,
       topics: referencePages.slice(1).map(page => ({ id: page.file.replace(".md", ""), page: page.file })),
       artifacts: [{ label: "Engineering review", href: "../review/index.html" }, { label: "User guide", href: "../user/index.html" }]
@@ -38,14 +38,14 @@ export default {
     },
     {
       id: "user", title: "Note Desk User Guide", subtitle: "Tasks, expected results and recovery",
-      assets: ["assets"], strict: true, sourceDir: "docs/user", outputDir: "docs/generated/user", glossary: "docs/system/glossary.json",
+      assets: hasCaptures ? readdirSync(new URL("./docs/user/assets/screenshots", import.meta.url)).filter(name=>name.endsWith(".png")).map(name=>`assets/screenshots/${name}`) : [], strict: true, sourceDir: "docs/user", outputDir: "docs/generated/user", glossary: "docs/system/glossary.json",
       guide: true, screenshots: true,
       pages: [...userPages, { file: "maintenance.md", label: "Guide maintenance", group: "Contributors" }],
       artifacts: [{ label: "System reference", href: "../reference/index.html" }]
     },
     {
       id: "help", title: "Note Desk Help", subtitle: "Bundled application help",
-      assets: ["assets"], strict: true, sourceDir: "docs/user", outputDir: "docs/generated/help", glossary: "docs/system/glossary.json",
+      assets: hasCaptures ? readdirSync(new URL("./docs/user/assets/screenshots", import.meta.url)).filter(name=>name.endsWith(".png")).map(name=>`assets/screenshots/${name}`) : [], strict: true, sourceDir: "docs/user", outputDir: "docs/generated/help", glossary: "docs/system/glossary.json",
       guide: true, bundled: true, screenshots: true, audience: "user", pages: userPages
     }
   ],

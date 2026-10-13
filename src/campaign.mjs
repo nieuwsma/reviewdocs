@@ -72,15 +72,9 @@ export function renderCampaign(campaign, section, { evidenceHref = () => undefin
 export const evidenceOutput = evidence => `evidence/${evidence.id}/${path.basename(evidence.path)}`;
 export async function buildCampaign(configuration, campaign, root, presentation) {
   await replaceDirectory(configuration.outputDir, async stage => {
-    for (const evidence of campaign.evidence.filter(e => e.path)) {
-      const output = path.join(stage, evidenceOutput(evidence));
-      await mkdir(path.dirname(output), { recursive: true });
-      await cp(safePath(root, evidence.path), output);
-    }
-    await writeFile(`${stage}/campaign.json`, `${JSON.stringify(campaign, null, 2)}\n`);
-    let html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Campaign ${esc(campaign.id)}</title></head><body><h1>Engineering campaign</h1>${renderCampaign(campaign, "review-summary", { evidenceHref: e => e.path ? evidenceOutput(e) : undefined })}${renderCampaign(campaign, "review-findings")}${renderCampaign(campaign, "review-history")}</body></html>\n`;
+    let html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Campaign ${esc(campaign.id)}</title></head><body><h1>Engineering campaign</h1>${renderCampaign(campaign, "review-summary")}${renderCampaign(campaign, "review-findings")}${renderCampaign(campaign, "review-history")}</body></html>\n`;
     if (presentation) {
-      html = await presentation.renderPage({ title: configuration.title ?? 'Engineering Campaign', label: campaign.id, homeHref: 'index.html', options: presentation.options, body: `<h1>Engineering campaign</h1>${renderCampaign(campaign, "review-summary", { evidenceHref: e => e.path ? evidenceOutput(e) : undefined })}${renderCampaign(campaign, "review-findings")}${renderCampaign(campaign, "review-history")}` });
+      html = await presentation.renderPage({ title: configuration.title ?? 'Engineering Campaign', label: campaign.id, homeHref: 'index.html', options: presentation.options, body: `<h1>Engineering campaign</h1>${renderCampaign(campaign, "review-summary")}${renderCampaign(campaign, "review-findings")}${renderCampaign(campaign, "review-history")}` });
       await copyPresentation(presentation, stage);
       await writeFile(`${stage}/site.js`, javascript);
     }

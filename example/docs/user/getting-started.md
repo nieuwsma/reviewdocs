@@ -6,7 +6,7 @@ Use a browser with JavaScript enabled. The example contains disposable synthetic
 
 ## Open the workspace
 
-1. [Open Note Desk](assets/demo/index.html).
+1. Open Note Desk using the separate synthetic test fixture.
 2. Check the heading **Note Desk — synthetic demo**.
 3. To start clean, choose **Reset demo**.
 

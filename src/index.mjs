@@ -1,5 +1,6 @@
+import {selectArtifacts} from "./plan.mjs";
 import path from "node:path";
-import { artifactSelected, loadConfig } from "./config.mjs";
+import { loadConfig } from "./config.mjs";
 import { buildCollection } from "./site.mjs";
 import { buildOpenApi, validateOpenApi } from "./openapi.mjs";
 import { buildDiagrams } from "./diagrams.mjs";
@@ -7,7 +8,7 @@ import { buildInventory } from "./inventory.mjs";
 import { buildDatabaseDocs } from "./database.mjs";
 import { assertDeterministic, validateSite } from "./check.mjs";
 import { initializeProject } from "./init.mjs";
-import { recordProvenance, verifyProvenance, provenancePath, inputDigest } from "./provenance.mjs";
+import { createProvenance, verifyProvenance, provenancePath, inputDigest } from "./provenance.mjs";
 import { readCampaign, buildCampaign, evidenceOutput } from "./campaign.mjs";
 import { validateScreenshots } from "./screenshots.mjs";
 import { buildLanding } from "./delivery.mjs";
@@ -18,44 +19,39 @@ import { loadPresentation } from "./presentation.mjs";
 export { initializeProject };
 export { adoptProject } from "./adopt.mjs";
 
-function selected(config, only) {
-  const known = [...config.artifacts, ...config.evidence].map(a => a.id);
-  for (const id of only) if (!known.includes(id)) throw new Error(`unknown artifact id: ${id}`);
-  const ordered = [], visited = new Set();
-  function visit(artifact) {
-    if (visited.has(artifact.id)) return;
-    visited.add(artifact.id);
-    for (const id of artifact.dependsOn ?? []) visit(config.artifacts.find(a=>a.id===id));
-    ordered.push(artifact);
-  }
-  for (const artifact of config.artifacts.filter(a=>artifactSelected(a.id,only))) visit(artifact);
-  return ordered;
-}
+const selected=selectArtifacts;
 async function context(config, render = true) {
   const campaign = config.campaign ? await readCampaign(config.campaign) : undefined;
-  const publishedFiles = new Map(config.openapi.map(a => [a.source, path.join(a.outputDir, "openapi.json")]));
-  for (const evidence of campaign?.evidence.filter(e => e.path) ?? []) publishedFiles.set(path.resolve(config.root, evidence.path), path.join(config.campaign.outputDir, evidenceOutput(evidence)));
+  const publishedFiles = new Map(config.openapi.map(a => [a.source, path.join(a.outputDir, "index.html")]));
   return { inventory: config.inventory, presentation: render ? await loadPresentation(config.presentation) : undefined, root: config.root, collections: config.collections, campaign, publishedFiles };
 }
-async function buildArtifact(config, artifact, ctx) {
-  const before = await inputDigest(config.root, artifact.inputs, { exclude: artifact.inputExclude });
-  if (config.collections.includes(artifact)) await buildCollection(artifact, ctx);
-  else if (config.diagrams.includes(artifact)) await buildDiagrams(artifact);
-  else if (config.openapi.includes(artifact)) await buildOpenApi(artifact);
-  else if (artifact === config.inventory) await buildInventory(artifact);
-  else if (artifact === config.databaseDocs) await buildDatabaseDocs(artifact, config.root);
-  else if (artifact === config.campaign) await buildCampaign(artifact, ctx.campaign, config.root, ctx.presentation);
-  else if (artifact === config.landing) await buildLanding(artifact, config.collections, ctx.presentation);
+async function renderArtifact(config, artifact, ctx, original = artifact) {
+  if (config.collections.includes(original)) await buildCollection(artifact, ctx);
+  else if (config.diagrams.includes(original)) await buildDiagrams(artifact);
+  else if (config.openapi.includes(original)) await buildOpenApi(artifact);
+  else if (original === config.inventory) await buildInventory(artifact);
+  else if (original === config.databaseDocs) await buildDatabaseDocs(artifact, config.root);
+  else if (original === config.campaign) await buildCampaign(artifact, ctx.campaign, config.root, ctx.presentation);
+  else if (original === config.landing) await buildLanding(artifact, config.collections, ctx.presentation);
   else throw new Error(`unknown artifact ${artifact.id}`);
-  await recordProvenance(config, artifact, before);
+
+}
+async function buildArtifact(config, artifact, ctx) {
+ const before=await inputDigest(config.root,artifact.inputs,{exclude:artifact.inputExclude});
+ const {publish,publishOwnedFiles}=await import('./transactions.mjs');
+ const options={lockTarget:path.join(config.stateDir,"publication"), allowedTargets:[config.stateDir,...config.artifacts.map(a=>a.outputDir??a.output)],metadataFile:provenancePath(artifact), metadata:stage=>createProvenance(config,{...artifact,...(artifact.outputDir?{outputDir:stage}:{output:stage})},before),afterInstall:async()=>{if(before!==await inputDigest(config.root,artifact.inputs,{exclude:artifact.inputExclude}))throw new Error(`${artifact.id}: inputs changed while publishing`);}};
+ const render=stage=>renderArtifact(config,{...artifact,renderOutputDir:artifact.outputDir,...(artifact.outputDir?{outputDir:stage}:{output:stage})},ctx,artifact);
+ const writer=async stage=>{ await render(stage); if(artifact.outputDir) { const {registerPublication,publishedFiles,publicationManifest}=await import('./publication.mjs'); await registerPublication(stage); if(artifact.portal) {const {writeFile}=await import('node:fs/promises');const files=await publishedFiles(stage);for(const child of config.artifacts.filter(a=>a!==artifact && a.outputDir && a.outputDir.startsWith(artifact.outputDir+path.sep))) {if(await exists(path.join(child.outputDir,publicationManifest))) for(const file of await publishedFiles(child.outputDir)) files.add(path.relative(artifact.outputDir,path.join(child.outputDir,file)).split(path.sep).join('/'));}await writeFile(path.join(stage,publicationManifest),JSON.stringify({formatVersion:1,files:[...files].sort()})+'\n');} } };
+ if(artifact.portal) await publishOwnedFiles(artifact.outputDir,['index.html','site.js','_presentation','.reviewdocs-publication.json'],writer,options);
+ else await publish(artifact.outputDir??artifact.output,writer,{...options,file:!artifact.outputDir});
 }
 export async function buildAll(configPath, { only = [] } = {}) {
-  const config = await loadConfig(configPath);
+  const config = await loadConfig(configPath,{only});
   const ctx = await context(config);
   for (const artifact of selected(config, only)) await buildArtifact(config, artifact, ctx);
 }
 export async function checkAll(configPath, { only = [] } = {}) {
-  const config = await loadConfig(configPath);
+  const config = await loadConfig(configPath,{only});
   const ctx = await context(config);
   const artifacts = selected(config, only);
   for (const artifact of artifacts) await buildArtifact(config, artifact, ctx);
@@ -80,7 +76,7 @@ export async function checkAll(configPath, { only = [] } = {}) {
   }
 }
 export async function verifyAll(configPath, { only = [] } = {}) {
-  const config = await loadConfig(configPath);
+  const config = await loadConfig(configPath,{only});
   selected(config, only);
   await context(config, false);
   for (const artifact of selected(config, only)) await verifyProvenance(config, artifact);
@@ -89,10 +85,13 @@ export async function verifyAll(configPath, { only = [] } = {}) {
   console.log("verified source fingerprints and retained outputs without rebuilding");
 }
 export async function executeEvidence(configPath, { only = [] } = {}) {
-  const config = await loadConfig(configPath);
+  const config = await loadConfig(configPath,{only});
   if (!only.length) throw new Error("evidence execution requires --only <lane-id,...>");
   for (const id of only) if (!config.evidence.some(l => l.id === id)) throw new Error(`unknown evidence lane: ${id}`);
   const results = [];
   for (const lane of config.evidence.filter(l => only.includes(l.id))) results.push(await runEvidence(config, lane));
   return results;
 }
+
+export {doctor} from "./doctor.mjs";
+export {migrateProject} from "./migrate.mjs";

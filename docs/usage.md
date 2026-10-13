@@ -1,6 +1,6 @@
 # Documentation capability
 
-reviewdocs 0.2 provides three authoring profiles: a factual system reference, an
+reviewdocs 0.5 provides three authoring profiles: a factual system reference, an
 engineering review, and a task-based user guide. The complete scaffold also
 produces finite application help from the same user sources. The packaged skills
 guide source research and writing; the tools do not invent explanations, findings
@@ -8,21 +8,21 @@ or release judgments.
 
 ## Install and adopt
 
-Install a pinned version/revision in the consuming repository. For a non-Node
+Install a pinned 0.5.x version/revision in the consuming repository. For a non-Node
 application, use a dedicated `tools/reviewdocs/package.json` and lockfile:
 
 ```sh
 mkdir -p tools/reviewdocs
 cd tools/reviewdocs
 npm init -y
-npm install --save-dev reviewdocs@<published-version>
+npm install --save-dev github:nieuwsma/reviewdocs#v0.5.0
 cd ../..
 node tools/reviewdocs/node_modules/reviewdocs/bin/reviewdocs.mjs adopt --dry-run
 node tools/reviewdocs/node_modules/reviewdocs/bin/reviewdocs.mjs adopt
 ```
 
-The publication placeholder is intentional: use a versioned tarball or pinned
-GitHub revision until this version is published. CI must be able to retrieve
+Use the release tarball or pinned GitHub tag until this package is published
+to npm. CI must be able to retrieve
 that immutable dependency; an absolute sibling path or `npm link` is unsuitable.
 
 `adopt` adds missing templates and skills. Existing config, Markdown, findings and
@@ -48,6 +48,8 @@ files so upgrades can preserve the reusable procedures.
 | --- | --- |
 | `build` | Render selected artifacts and record input/output provenance; never run configured test lanes |
 | `check` | Build, compare repeated collection/API/campaign output, validate links/anchors, campaign state, screenshots and required retained evidence |
+| `doctor [--only ids] [--json]` | Read-only artifact, prerequisite and freshness diagnostics; no producer execution or service startup |
+| `migrate [--dry-run]` | Verify and relocate compatible legacy provenance/evidence into private state; preserve recorded version |
 | `verify` | Read-only comparison of source fingerprints and output hashes; no regeneration or test execution |
 | `evidence --only lane` | Execute the selected repository commands; retain every result, promote only complete passing evidence |
 | `serve` | Serve the generated landing directory on loopback; print the exact URL |
@@ -160,9 +162,7 @@ evidence content. Do not put secrets in command arguments.
 
 ## Freshness and screenshots
 
-Every built artifact has `.reviewdocs-provenance.json` (or a JSON sidecar for
-inventory), recording toolkit version, Git metadata and stable input/output
-hashes. Declare producer input roots for database docs and evidence. A source
+Every built artifact has private provenance under `.reviewdocs/provenance/`, recording toolkit version, Git metadata and stable input/output hashes. Evidence and relocated inventories live under `.reviewdocs/`; the output tree contains declared public artifacts and a minimal file ownership manifest. `doctor --json` emits schemaVersion 1 diagnostics and does not render or run producers. Loading the trusted `.mjs` configuration still executes its top-level code. `migrate --dry-run` previews verified legacy state relocation; migration preserves the proof’s original version, so it may remain stale and need an explicit rebuild. Declare producer input roots for database docs and evidence. A source
 change during production prevents current provenance/promotion. Excluded output
 roots and dependency/build directories do not contaminate fingerprints.
 
@@ -210,3 +210,7 @@ For a Foundation logo, set presentation options `brandImage: "brand.png"` and pl
 ## Visible code counts
 
 Add `{{inventory-report}}` to a published Markdown page with `inventory` configured. The producer writes per-file records, physical/nonblank totals by extension, tests versus production/tooling, and production/tooling by surface. Configure `include`, `exclude`, and `extensions` to describe actual first-party source. Optional `surfaces: [{id, label, include}]` groups paths under product responsibilities. Default surfaces follow the first path component. Comments count as nonblank; a final newline does not add a line. The macro establishes a build dependency, including with `--only`, and verification rejects stale producer inputs or a report based on an older inventory.
+
+## Publication boundary
+
+Source and evidence paths are private inputs, cited as plain filenames. Collection asset directories accept illustrations only and reject code, configuration, raw evidence and archives, including unlinked files and symlinks. Local hyperlinks must resolve to generated HTML documentation; screenshots are inline illustrations. Publish operator runbooks as collection pages rather than file downloads. OpenAPI links resolve to the API documentation page. Campaign and raw evidence stay in private project state; the published review states its status and proof boundary without copying evidence files. `check` also rejects source files in retained output.

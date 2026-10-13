@@ -2,7 +2,7 @@
 
 ## Before you begin
 
-[Open the demo](assets/demo/index.html). Use disposable example text.
+Open the demo using the separate synthetic test fixture. Use disposable example text.
 
 ## Steps
 

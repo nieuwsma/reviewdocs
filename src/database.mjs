@@ -1,6 +1,7 @@
 import { chmod, cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { sanitizeSchemaPublication } from "./publication.mjs";
 import { replaceDirectory } from "./files.mjs";
 import { escapeHtml } from "./paths.mjs";
 import { stylesheet, javascript } from "./ui.mjs";
@@ -26,7 +27,7 @@ const erdDiagrams = [
 
 export function erdPage(database) {
   const name = `${database.database ?? database.id}.${database.schema ?? "public"}`;
-  const figures = erdDiagrams.map(([title, scalable]) => `<figure class="diagram-view" data-diagram><figcaption>${escapeHtml(title)}</figcaption><div class="diagram-controls"><button type="button" data-action="in" aria-label="Zoom in: ${escapeHtml(title)}">+</button><button type="button" data-action="out" aria-label="Zoom out: ${escapeHtml(title)}">−</button><button type="button" data-action="fit">Fit diagram</button><a href="${scalable}">Full-size SVG</a></div><div class="diagram-viewport" tabindex="0" role="region" aria-label="${escapeHtml(title)}; arrow keys scroll, mouse drag pans"><img src="${scalable}" alt="${escapeHtml(title)}"></div></figure>`).join("\n");
+  const figures = erdDiagrams.map(([title, scalable]) => `<figure class="diagram-view" data-diagram><figcaption>${escapeHtml(title)}</figcaption><div class="diagram-controls"><button type="button" data-action="in" aria-label="Zoom in: ${escapeHtml(title)}">+</button><button type="button" data-action="out" aria-label="Zoom out: ${escapeHtml(title)}">−</button><button type="button" data-action="fit">Fit diagram</button></div><div class="diagram-viewport" tabindex="0" role="region" aria-label="${escapeHtml(title)}; arrow keys scroll, mouse drag pans"><img src="${scalable}" alt="${escapeHtml(title)}"></div></figure>`).join("\n");
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(name)} relationships</title><style>${stylesheet}</style></head><body><main class="content"><h1>${escapeHtml(name)} relationships</h1><p>Foreign-key lines are database constraints. Implied relationships are name-derived hints, not constraints. Use Fit diagram, zoom, arrow-key scrolling or mouse dragging. <a href="index.html">Schema dictionary</a>.</p>${figures}<p class="print-only">Print each full-size SVG in landscape for large diagrams.</p></main><script>${javascript}</script></body></html>\n`;
 }
 
@@ -84,6 +85,7 @@ export async function buildDatabaseDocs(configuration, root) {
       for (const database of configuration.databases ?? []) {
         const source = path.join(stage, database.id);
         await cp(source, path.join(output, database.id), { recursive: true });
+        await sanitizeSchemaPublication(path.join(output, database.id));
       }
     });
     console.log(`built ${configuration.id ?? "database"}: ${configuration.outputDir}`);

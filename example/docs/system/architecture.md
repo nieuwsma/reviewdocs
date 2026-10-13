@@ -4,7 +4,7 @@
 
 The user drafts a note, saves an immutable revision and explicitly approves it. Browser-owned state retains the revision history and current approval in local storage. No backend, identity provider or shared database exists.
 
-<figure><img src="assets/context.svg" alt="User actions enter the browser workflow, which owns revisions and local storage"><figcaption>One browser owns this synthetic example's state. Blue is the workflow; gray is local persistence. Arrows represent an action or a saved state, not a network API. <a href="assets/context.mmd">Mermaid source</a>.</figcaption></figure>
+<figure><img src="assets/context.svg" alt="User actions enter the browser workflow, which owns revisions and local storage"><figcaption>One browser owns this synthetic example's state. Blue is the workflow; gray is local persistence. Arrows represent an action or a saved state, not a network API. <code>assets/context.mmd</code>.</figcaption></figure>
 
 ## Trust and authority
 

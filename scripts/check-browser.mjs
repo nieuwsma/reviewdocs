@@ -14,15 +14,17 @@ const config = path.join(example, "reviewdocs.config.mjs");
 const capture = process.argv.includes("--capture");
 if (capture) await buildAll(config); else await checkAll(config);
 const sourceInputHash = await inputDigest(example, ["docs/user/assets/demo"]);
-let browser, server, staging;
+let browser, server, fixtureServer, staging;
 try {
   browser = await chromium.launch({ headless: true });
   const served = await serveDocs(path.join(example, "docs/generated"));
   server = served.server;
+  const fixture = await serveDocs(path.join(example, "docs/user/assets/demo"));
+  fixtureServer = fixture.server;
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
   const errors = [];
   page.on("pageerror", error => errors.push(error.message));
-  await page.route("**/*", route => route.request().url().startsWith(served.url) ? route.continue() : route.abort());
+  await page.route("**/*", route => route.request().url().startsWith(served.url) || route.request().url().startsWith(fixture.url) ? route.continue() : route.abort());
   await page.goto(`${served.url}user/index.html`);
   await page.locator("[data-nav-filter]").fill("troubleshooting");
   assert.equal(await page.locator("[data-nav-item]:visible").count(), 1);
@@ -43,7 +45,7 @@ try {
   await page.goto(`${served.url}help/index.html`);
   assert.equal(await page.locator('a[href*="maintenance"]').count(), 0);
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.goto(`${served.url}user/assets/demo/index.html`);
+  await page.goto(`${fixture.url}index.html`);
   await page.getByRole("button", { name: "Reset demo", exact: true }).click();
   await page.getByLabel("Draft text").fill("Review the draft");
   await page.getByRole("button", { name: "Save revision", exact: true }).click();
@@ -78,6 +80,7 @@ try {
   console.log("Browser checks passed: navigation, glossary keyboard access, narrow layout, print, finite help, demo save/approve/invalidation.");
 } finally {
   await browser?.close();
+  if (fixtureServer) await new Promise(resolve => fixtureServer.close(resolve));
   if (server) await new Promise(resolve => server.close(resolve));
   if (staging) await rm(staging, { recursive: true, force: true });
 }

@@ -5,14 +5,20 @@ description: Run a thorough code and design review of the repository, or reasses
 
 # Evidence-backed engineering review
 
-Reuse the product’s selected visual system when publishing docs. Inspect its installed components and tokens before changing the renderer. When Foundation is selected, use the `reviewdocs/foundation` adapter with actual Foundation components and local compiled assets; keep extra styles limited to prose, diagrams and print. Include theme producer inputs and installed component hashes in freshness checks, and carry those assets inside bundled help.
+Read and apply the [shared documentation policy](../../references/documentation-policy.md). Resolve paths from the consumer configuration.
 
 Treat repository reports as durable review state rather than a transcript. `reviewdocs` publishes the review. It does not write the judgments.
 
+## Review scope and coverage
+
+Choose `full` or `scoped` from the requested task. Resolve `<review-source>` from the configured review collection (the starter uses `docs/review`). A full review opens every first-party production file and traces the outline's behaviors. A scoped review declares selected components, paths and behaviors before starting; it must not claim full coverage.
+
+Maintain a coverage record using [the coverage template](references/coverage-template.md): mode, source revision, opened files, traced behaviors, evidence lanes and boundaries, omissions and prior finding IDs not examined. Scope is authored evidence, not an automatic file-count claim. Retain unexamined findings and their prior state. Classify a finding as fixed only with evidence that satisfies its exit condition; release posture remains an authored judgment.
+
 ## Before reviewing
 
-1. Read `docs/review/README.md`, `docs/review/executive-summary.md`, `docs/review/findings-register.md`, and `docs/review/campaign-protocol.md` completely.
-2. Read `.agents/skills/evidence-review/references/evidence-matrix.md` and `.agents/skills/evidence-review/references/review-outline.md`. Populate the consumer-owned `docs/review/evidence-matrix.md` and configured lanes before running the campaign.
+1. Read `<review-source>/README.md`, `<review-source>/executive-summary.md`, `<review-source>/findings-register.md`, and `<review-source>/campaign-protocol.md` completely.
+2. Read `.agents/skills/evidence-review/references/evidence-matrix.md` and `.agents/skills/evidence-review/references/review-outline.md`. Populate the consumer-owned `<review-source>/evidence-matrix.md` and configured lanes before running the campaign.
 3. Record the source commit, dirty state, comparison baseline, date, tool versions, and available test infrastructure.
 4. Preserve user changes. Do not reset or overwrite unrelated work.
 
@@ -27,8 +33,8 @@ Treat repository reports as durable review state rather than a transcript. `revi
 
 ## Required completion
 
-- `docs/review/design-review.md` and `docs/review/code-review.md` exist, use the outline's headings, and are published pages.
-- Coverage in `references/review-outline.md` is satisfied: every first-party production file was opened, and imported code was not reviewed.
+- `<review-source>/design-review.md` and `<review-source>/code-review.md` exist, use the outline's headings, and are published pages.
+- The declared coverage record is complete for the selected mode. Full mode satisfies `references/review-outline.md`; scoped mode lists omissions and unexamined prior IDs. Imported code is outside first-party coverage.
 - Every finding is in the canonical register and an authored track report or design/code synthesis. Configure each track's report so the toolkit can check ID coverage.
 - Fresh evidence is retained or its absence is explicitly qualified.
 - Test totals and finding counts agree across the summary, the register, and the write-ups.

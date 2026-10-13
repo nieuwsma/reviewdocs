@@ -30,7 +30,7 @@ test("reads an OpenAPI YAML source", async () => {
   const document = { id: "api", source, outputDir };
   await buildOpenApi(document);
   await validateOpenApi(document);
-  const generated = JSON.parse(await readFile(path.join(outputDir, "openapi.json"), "utf8"));
+  const generated = JSON.parse((await readFile(path.join(outputDir, "index.html"), "utf8")).match(/<script id="openapi" type="application\/json">([\s\S]*?)<\/script>/)[1]);
   assert.equal(generated.info.title, "YAML API");
   assert.equal(generated.paths["/health"].get.responses["200"].description, "ok");
 });

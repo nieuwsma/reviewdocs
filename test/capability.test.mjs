@@ -153,7 +153,11 @@ test("config rejects source/output overlap and unpublished topics", async () => 
 test("export is relocatable and refuses overwrite", async () => {
   const { filename } = await fixture(); await buildAll(filename);
   const loaded = await loadConfig(filename), destination = path.join(await temp(), "bundle");
+  await writeFile(path.join(loaded.landing.outputDir,"unlinked.html"),"private report");
+  const {publishedFiles}=await import("../src/publication.mjs");
+  assert.equal((await publishedFiles(loaded.landing.outputDir)).has("unlinked.html"),false);
   await exportDocs(loaded, destination); await validateSite(destination, { root: destination, portable: true });
+  await assert.rejects(()=>readFile(path.join(destination,"unlinked.html")),/ENOENT/);
   await assert.rejects(() => exportDocs(loaded, destination), /exists/);
 });
 

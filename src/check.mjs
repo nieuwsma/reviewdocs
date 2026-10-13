@@ -1,5 +1,6 @@
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
+import { assertDocumentationLink } from "./publication.mjs";
 import { digestDirectory, filesBelow } from "./files.mjs";
 
 function attributeValues(html, attribute) {
@@ -11,7 +12,9 @@ function documentIds(html) {
 }
 
 export async function validateSite(directory, { directories = [directory], portable = false, root = undefined } = {}) {
-  const htmlFiles = [...new Set((await Promise.all(directories.map(filesBelow))).flat().filter(filename => filename.endsWith(".html")))];
+  const published = [...new Set((await Promise.all(directories.map(filesBelow))).flat())];
+  for (const file of published) if (/\.(?:go|py|sql|tsx?|jsx|sh|bash|zsh|c|h|cpp|rs|java|rb|swift)$/i.test(file)) throw new Error(`published source file: ${file}`);
+  const htmlFiles = published.filter(filename => filename.endsWith(".html"));
   const documents = new Map();
   for (const filename of htmlFiles) {
     const html = await readFile(filename, "utf8");
@@ -21,6 +24,10 @@ export async function validateSite(directory, { directories = [directory], porta
   }
   const failures = [];
   for (const [filename, document] of documents) {
+    for (const link of [...document.html.matchAll(/<a\b[^>]*\bhref=(?:"([^"]+)"|'([^']+)'|([^\s>]+))/gi)]) {
+      try { assertDocumentationLink((link[1] ?? link[2] ?? link[3]).replaceAll("&amp;", "&")); }
+      catch (error) { failures.push(`${filename}: ${error.message}`); }
+    }
     for (const rawTarget of [...attributeValues(document.html, "href"), ...attributeValues(document.html, "src")]) {
       if (portable && /^file:/i.test(rawTarget)) { failures.push(`${path.relative(directory, filename)}: nonportable ${rawTarget}`); continue; }
       if (/^(?:[a-z]+:|\/\/)/i.test(rawTarget)) continue;

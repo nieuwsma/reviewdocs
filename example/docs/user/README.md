@@ -1,6 +1,6 @@
 # Note Desk User Guide
 
-Practice revision and approval with a disposable synthetic note. [Open the actual demo](assets/demo/index.html). This browser-only example has no real accounts, server or production data.
+Practice revision and approval with a disposable synthetic note. Open the actual demo using the separate synthetic test fixture. This browser-only example has no real accounts, server or production data.
 
 | Task | Chapter |
 | --- | --- |

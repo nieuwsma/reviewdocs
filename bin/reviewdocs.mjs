@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 import path from "node:path";
+import {doctor} from "../src/doctor.mjs";
+import {migrateProject} from "../src/migrate.mjs";
+import {version} from "../src/provenance.mjs";
 import process from "node:process";
 import { buildAll, checkAll, initializeProject, adoptProject, verifyAll, executeEvidence } from "../src/index.mjs";
 import { loadConfig } from "../src/config.mjs";
@@ -14,6 +17,8 @@ Commands:
   upgrade [directory]     Upgrade unchanged managed skills; propose conflicts
   build                   Generate configured artifacts; does not run test lanes
   check                   Rebuild, verify determinism, links and structured state
+  doctor                  Read-only diagnostics (--json for machine output)
+  migrate                 Move checked legacy proof to private state
   verify                  Read-only source/output freshness validation
   evidence                Execute explicitly selected repository evidence lanes
   serve                   Serve the generated portal on loopback
@@ -24,6 +29,8 @@ Options:
   --config <path>          Configuration file (default: reviewdocs.config.mjs)
   --only <id,...>          Select artifact IDs or explicit evidence lane IDs
   --dry-run               Adoption plan without writes
+                           Also previews migration: reviewdocs migrate --dry-run
+  --json                  Doctor output as versioned machine-readable JSON
   --profile complete      Complete three-category scaffold
   --skills / --no-skills   Include/exclude packaged skills during adoption
   --port <number>          Loopback port; default chooses an available port
@@ -32,11 +39,13 @@ Options:
 `);
 }
 function parse(argv) {
-  const result = { command: argv[0], config: "reviewdocs.config.mjs", only: [], force: false, skills: true, port: 0 };
+  const result = { command: argv[0], help:["--help","-h"].includes(argv[0]), version:argv[0]==="--version", config: "reviewdocs.config.mjs", only: [], force: false, skills: true, port: 0 };
   const value = index => { if (!argv[index] || argv[index].startsWith("--")) throw new Error(`missing value for ${argv[index - 1]}`); return argv[index]; };
   for (let index = 1; index < argv.length; index++) {
     const arg = argv[index];
     if (["--help", "-h"].includes(arg)) result.help = true;
+    else if (arg === "--json") result.json = true;
+    else if (arg === "--version") result.version = true;
     else if (arg === "--force") result.force = true;
     else if (arg === "--dry-run") result.dryRun = true;
     else if (arg === "--skills") result.skills = true;
@@ -55,9 +64,12 @@ function parse(argv) {
 try {
   const options = parse(process.argv.slice(2));
   const configPath = path.resolve(options.config);
-  if (!options.command || options.help) { usage(); process.exitCode = options.command ? 0 : 1; }
+  if (options.version) console.log(version);
+  else if (!options.command || options.help) { usage(); process.exitCode = options.command ? 0 : 1; }
   else if (options.command === "init") await initializeProject(path.resolve(options.directory ?? "."), { force: options.force });
   else if (["adopt", "upgrade"].includes(options.command)) await adoptProject(path.resolve(options.directory ?? "."), options);
+  else if (options.command === "doctor") {const report=await doctor(configPath,options);console.log(options.json?JSON.stringify(report):report.results.map(r=>`${r.id}: ${r.state}${r.message?` — ${r.message}`:""}\n  ${r.command??"Correct the configuration"}`).join("\n"));if(report.status!=="fresh")process.exitCode=1;}
+  else if (options.command === "migrate") console.log(JSON.stringify(await migrateProject(configPath,options),null,2));
   else if (options.command === "build") await buildAll(configPath, options);
   else if (options.command === "check") await checkAll(configPath, options);
   else if (options.command === "verify") await verifyAll(configPath, options);

@@ -1,6 +1,6 @@
 {
   "name": "reviewdocs",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Configuration-driven documentation, architecture reference, and engineering review evidence generator",
   "type": "module",
   "bin": {
@@ -17,9 +17,11 @@
     "src",
     "templates",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE",
     "schemas",
-    "docs/usage.md"
+    "docs/usage.md",
+    "docs/tool-comparison.md"
   ],
   "scripts": {
     "build:example": "node ./bin/reviewdocs.mjs build --config example/reviewdocs.config.mjs",

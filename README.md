@@ -2,19 +2,21 @@
 
 `reviewdocs` builds a factual system reference, an engineering review, and a task-based user guide from maintained repository sources. It can also bundle user chapters as application help. Generated HTML is a projection of those sources. The tool does not invent explanations, findings or release judgments.
 
-The toolkit is product, organization, language, and infrastructure neutral. Sites work offline and through a loopback browser URL. The [capability guide](docs/usage.md) covers safe adoption/upgrades, campaign ledgers, evidence adapters, screenshots, provenance and app-help projection.
+The toolkit is product, organization, language, and infrastructure neutral. Sites work offline and through a loopback browser URL. The [capability guide](docs/usage.md) covers safe adoption/upgrades, campaign ledgers, evidence adapters, screenshots, private provenance, diagnostics, migration and app-help projection. See the [tool comparison](docs/tool-comparison.md) for alternatives and boundaries.
+
+See the [changelog](CHANGELOG.md) for release changes and migration guidance.
 
 ## Quick start
 
 From the repository you want to document:
 
 ```sh
-npm install --save-dev github:nieuwsma/reviewdocs
+npm install --save-dev github:nieuwsma/reviewdocs#v0.5.0
 npx reviewdocs init
 npx reviewdocs build
 ```
 
-Then author the Markdown under `docs/reference`, `docs/review` and `docs/user`, build again, and run `npx reviewdocs open`. The landing page links all three experiences. Starter text is an authoring outline, not completed product documentation; enable `strict: true` after replacing the outlines.
+Then author Markdown under the configured collection source directories, build again, and run `npx reviewdocs open`. The landing page links all three experiences. Starter text is an authoring outline, not completed product documentation; enable `strict: true` after replacing the outlines.
 
 Before you treat the result as current, run:
 
@@ -31,13 +33,13 @@ npx reviewdocs check
 Until the package is on npm, install it from GitHub:
 
 ```sh
-npm install --save-dev github:nieuwsma/reviewdocs
+npm install --save-dev github:nieuwsma/reviewdocs#v0.5.0
 ```
 
 For a private checkout over SSH:
 
 ```sh
-npm install --save-dev git+ssh://git@github.com:nieuwsma/reviewdocs.git
+npm install --save-dev git+ssh://git@github.com:nieuwsma/reviewdocs.git#v0.5.0
 ```
 
 After publication, `npm install --save-dev reviewdocs` is enough. `init` does not edit `package.json`. Add the dependency yourself before relying on the copied CI workflow.
@@ -148,7 +150,7 @@ Each collection requires `id`, `title`, `sourceDir`, `outputDir`, and at least o
 - `pages[].output` is the HTML file name. The default replaces `.md` with `.html`. Use `output: "index.html"` for the page that should open as the site index.
 - `pages[].label` is the navigation text. The default is the file name.
 - `artifacts` are extra sidebar links. Their `href` values are written as given.
-- `assets` is a list of directories, relative to `sourceDir`, copied into the output.
+- `assets` is a list of illustration files/directories, relative to `sourceDir`, copied into the output.
 - `rewrites` maps an exact `href` string in the Markdown HTML to another URL.
 
 A link to any configured collection's Markdown is rewritten to its HTML, including nested paths and cross-collection anchors. `rewrites` handles exceptional legacy URLs. Heading ids come from heading text. Portable profiles reject absolute machine-specific file URLs.
@@ -186,9 +188,9 @@ openapi: [
 ]
 ```
 
-`source` may be OpenAPI JSON or YAML. The build copies the contract and writes an offline Swagger UI page at `outputDir/index.html`. Interactive requests are disabled. `npx reviewdocs check --only api` rebuilds that directory and fails if the copied document differs from `source`.
+`source` may be OpenAPI JSON or YAML. The build embeds the contract in an offline Swagger UI page at `outputDir/index.html`; raw JSON is not published. Interactive requests are disabled. `npx reviewdocs check --only api` rebuilds that directory and fails if the copied document differs from `source`.
 
-The generator reads `source` and does not write it. Request and response examples belong in that file. The next build replaces `outputDir`, including `index.html` and `openapi.json`, so edits there are discarded. The page names the source it was built from. A comment in a YAML source is not copied into `openapi.json`; put a durable warning in `info.description` if readers of the copied document need it.
+The generator reads `source` and does not write it. Request and response examples belong in that file. The next build replaces `outputDir`; the contract is embedded in the offline `index.html`, not published as a separate downloadable JSON file. The page names the source it was built from. Put durable warnings in `info.description` so they appear in the generated reference.
 
 ### Database documentation
 
@@ -231,7 +233,7 @@ The generator starts a temporary PostgreSQL container, runs the migration, runs 
 
 ## What to commit
 
-Commit `reviewdocs.config.mjs`, the Markdown under `docs/reference` and `docs/review`, and any `.mmd` or OpenAPI source. Commit `docs/generated/` when someone should be able to read the site without running the tool. Because `check` overwrites that directory before comparing two builds, look at `git diff -- docs/generated` and commit the rebuilt files when the diff is a real source change.
+Commit `reviewdocs.config.mjs`, the configured Markdown sources and any diagram or OpenAPI source. Generated HTML can be published from its declared public file set; private provenance and raw evidence stay in `.reviewdocs/`. Because `check` overwrites that directory before comparing two builds, look at `git diff -- docs/generated` and commit the rebuilt files when the diff is a real source change.
 
 You may gitignore `docs/generated/` instead. CI can rebuild it, and the Markdown remains the source. Do not commit `.local/`, dependency directories, or database output produced from real rows.
 
@@ -264,7 +266,7 @@ The command list for a campaign is the consumer-owned `docs/review/evidence-matr
 
 ## Screenshots and coverage
 
-UI screenshots and test coverage stay application-specific. Run the application's own commands in CI and put sanitized output under `docs/generated/coverage`, or under an asset directory that a collection copies. Do not copy fixtures, selectors, live identifiers, credentials, or coverage claims from another repository.
+UI screenshots and test coverage stay application-specific. Run the application's own commands in CI and retain sanitized outputs only in private `.reviewdocs/` evidence state. Do not copy fixtures, selectors, live identifiers, credentials, or coverage claims from another repository.
 
 ## Security and publication
 
@@ -278,6 +280,9 @@ Generated evidence can contain credentials, private URLs, live identifiers, or r
 - Inspect a package tarball with `npm pack --dry-run` before publishing this package.
 
 ## Development
+
+Repository planning: [tool comparison](docs/tool-comparison.md) and
+[reliability and agent refinement plan](docs/planning/reliability-and-agent-refinement-plan.md).
 
 ```sh
 npm install --omit=optional

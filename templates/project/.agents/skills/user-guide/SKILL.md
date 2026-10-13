@@ -5,7 +5,7 @@ description: Create or maintain task-based user documentation, troubleshooting a
 
 # User guide
 
-Reuse the product’s selected visual system when publishing docs. Inspect its installed components and tokens before changing the renderer. When Foundation is selected, use the `reviewdocs/foundation` adapter with actual Foundation components and local compiled assets; keep extra styles limited to prose, diagrams and print. Include theme producer inputs and installed component hashes in freshness checks, and carry those assets inside bundled help.
+Read and apply the [shared documentation policy](../../references/documentation-policy.md). Resolve paths from the consumer configuration.
 
 Read the documentation config and current UI, routes and permissions. Identify the reader's tasks and actual controls. Use [the task and capture procedure](references/tasks-and-capture.md) when authoring chapters or adapting a capture harness.
 

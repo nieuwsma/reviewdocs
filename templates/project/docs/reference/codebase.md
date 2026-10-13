@@ -8,7 +8,7 @@ REPLACE_ME: Map production roots to responsibilities. Explain imported modules w
 
 ## Inventory scope
 
-REPLACE_ME: Link generated inventory, explain first-party inclusions/exclusions and test classification. Generated bundles and dependency mirrors are not authored production code.
+REPLACE_ME: Describe generated inventory, explain first-party inclusions/exclusions and test classification. Generated bundles and dependency mirrors are not authored production code.
 
 ## Verification seams
 
