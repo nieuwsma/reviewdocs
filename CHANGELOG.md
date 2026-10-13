@@ -31,7 +31,8 @@ state, alongside evidence and publication reliability fixes.
   separate responsibilities, with errors before publication side effects.
 - CI uses clean installs on Node 20, 22, and 24, npm 11.6.0, read-only permissions,
   and updated actions. Package tests install the actual tarball and its declared
-  dependencies; installation failures cannot fall back to development copies.
+  dependencies even inside the `npm pack --dry-run` lifecycle; installation
+  failures cannot fall back to development copies.
 
 ### Migration and validation
 
